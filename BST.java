@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  *
- * @author Areeb Vaid
+ * @author Areeb Vaid & Ty Abbott
  */
 public class BST 
 {
