@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  *
- * @author Areeb Vaid & Ty Abbot
+ * @author Areeb Vaid & Ty Abbott
  */
 public class BST
 {
@@ -241,6 +241,126 @@ class BinarySearchTree
         }
     }
 
+    // Set the flags for the child edge
+    // Mode: Injection = 0, Discovery = 1, Cleanup = 2
+    public boolean markChildEdge(stateRecord state, int which)
+    {
+        node node;
+        node temp;
+        node address;
+        node oldValue;
+        node newValue;
+        node tempValue;
+        edge edge;
+        edge helpeeEdge = null;
+        boolean nullCheck = false;
+        boolean intentCheck = false;
+        boolean deleteCheck = false;
+        boolean promoteCheck = false;
+        boolean result;
+        int flag; // 0 = DELETE, 1 = PROMOTE
+
+        if (state.mode == 0)
+        {
+            edge = state.targetEdge;
+            flag = 0; // DELETE
+        }
+        else
+        {
+            edge = state.successorRecord.lastEdge;
+            flag = 1; // PROMOTE
+        }
+        node = edge.child;
+
+        while (true)
+        {
+            // Set temp and check flags
+            if (which == 0)
+                temp = node.leftChild.get();
+            else
+                temp = node.rightChild.get();
+
+            if (temp.nullFlag.get()) nullCheck = true;
+            if (temp.intentFlag.get()) intentCheck = true;
+            if (temp.deleteFlag.get()) deleteCheck = true;
+            if (temp.promoteFlag.get()) promoteCheck = true;
+            address = temp;
+
+            if (intentCheck == true)
+            {
+                makeEdge(helpeeEdge, node, address, which); // CHECK: NOT ALLOCATED?
+                helpTargetNode(helpeeEdge);
+                continue;
+            }
+
+            else if (deleteCheck == true)
+            {
+                // If flag is promote
+                if (flag == 1)
+                {
+                    helpTargetNode(edge);
+                    return false;
+                }
+                else
+                    return true;
+            }
+
+            else if (promoteCheck == true)
+            {
+                // Delete flag
+                if (flag == 0)
+                {
+                    helpSuccessorNode(edge);
+                    return false;
+                }
+                else
+                    return true;
+            }
+
+            // Set null for oldValue if nullCheck is true
+            if (nullCheck)
+                address.nullFlag.set(true);
+            oldValue = address;
+
+            if (flag == 0)
+            {
+                tempValue = oldValue;
+                tempValue.deleteFlag.set(true);
+                newValue = tempValue;
+            }
+            else
+            {
+                tempValue = oldValue;
+                tempValue.promoteFlag.set(true);
+                newValue = tempValue;
+            }
+
+            if (which == 0)
+                result = node.leftChild.compareAndSet(oldValue, newValue);
+            else
+                result = node.rightChild.compareAndSet(oldValue, newValue);
+
+            // If CAS failed retry, otherwise break out of loop and return true
+            if (!result)
+                continue;
+            else
+                break;
+        }
+        return true;
+    }
+
+    // Help deletion finish
+    public void helpTargetNode(edge helpeeEdge)
+    {
+
+    }
+
+    // Help promotion finish
+    public void helpSuccessorNode(edge helpeeEdge)
+    {
+
+    }
+
     // Function returns true if key is in tree and false if not
     public boolean search(int key)
     {
@@ -260,6 +380,7 @@ class BinarySearchTree
 
     }
 
+
 // ------------------------------ NOT DONE ------------------------------------------------------- |
     // Function to insert value into the bst
     public boolean insert(int key)  // targetRecord.remove(); Help target and succcessor
@@ -268,6 +389,7 @@ class BinarySearchTree
         node newNode;
         node address;
         node temp;
+        node tempAddress;
         edge targetEdge;
         int nKey;
         int which;
@@ -291,13 +413,14 @@ class BinarySearchTree
 
             which = targetRecord.get().injectionEdge.which;
             address = targetRecord.get().injectionEdge.child;
-            address.nullFlag.set(true);
+            tempAddress = address;
+            tempAddress.nullFlag.set(true);
 
             // Attempt to modify the BST by adding in the new node
             if (which == 0)
-                result = node.leftChild.compareAndSet(address, newNode);
+                result = node.leftChild.compareAndSet(tempAddress, newNode);
             else
-                result = node.rightChild.compareAndSet(address, newNode);
+                result = node.rightChild.compareAndSet(tempAddress, newNode);
 
             // Successful insertion
             if (result)
