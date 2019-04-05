@@ -91,6 +91,8 @@ class BinarySearchTree
         node rightNode = new node();
         leftNode.nullFlag.set(true);
         rightNode.nullFlag.set(true);
+        leftNode = null;
+        rightNode = null;
 
         newNode.leftChild.set(leftNode);
         newNode.rightChild.set(rightNode);
@@ -187,6 +189,7 @@ class BinarySearchTree
                     seeker.pLastEdge = pLastEdge;
                     seeker.lastEdge = lastEdge;
                     makeEdge(seeker.injectionEdge, curr, next, which);
+                    targetRecord.set(seeker);
 
                     // If key has been found return, else break to check if node has moved up the tree
                     if (key == cKey)
@@ -226,6 +229,7 @@ class BinarySearchTree
                 if (pAnchorRecord.node == anchorRecord.node && pAnchorRecord.key == anchorRecord.key)
                 {
                     setSeekRecord(seeker, pSeekRecord);
+                    targetRecord.set(seeker);
                     return;
                 }
             }
