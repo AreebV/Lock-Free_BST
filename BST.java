@@ -1,3 +1,6 @@
+
+package bst;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -349,10 +352,193 @@ class BinarySearchTree
         return true;
     }
 
+    // Set the type of delete operation and update the mode of the operation
+    public void initializeTypeAndUpdateMode(stateRecord state)
+    {
+        node node;
+
+        node = state.targetEdge.child;
+
+        // Checck if either children are null
+        if (node.leftChild.get().nullFlag.get() == true ||
+            node.rightChild.get().nullFlag.get() == true)
+        {
+            // Simple delete = 0, complex delete = 1
+            if(node.markFlag.get() == true)
+                state.type = 1;
+
+            else
+                state.type = 0;
+        }
+
+        // Both children are non null
+        else
+        {
+            state.type = 1;
+        }
+        updateMode(state);
+    }
+
+    public void updateMode (stateRecord state)
+    {
+        node node;
+
+        // If it is a simple delete then move straight to cleanup (no discovery)
+        if (state.type == 0)
+            state.mode = 2; // Cleanup = 2
+
+        else
+        {
+            node = state.targetEdge.child;
+
+            // If dicovery has been done, move to cleanup, otherwise move to discovery
+            if (node.readyToReplace.get() == true)
+                state.mode = 2; // Cleanup = 2
+            else
+                state.mode = 1; // Discovery = 1
+        }
+        return;
+    }
+
+    // Find the node with the smallest key in the right subtree of target
+    public boolean findSmallest(stateRecord state, seekRecord seeker)
+    {
+        node node;
+        node rightNode;
+        node leftNode;
+        node current;
+        edge lastEdge = null;
+        edge pLastEdge = null;
+        edge injectionEdge = null;
+
+        node = state.targetEdge.child;
+        rightNode = node.rightChild.get();
+
+        // Right tree is empty
+        if (rightNode.nullFlag.get() == true)
+            return false;
+
+        // Set up the traversal variables
+        makeEdge(lastEdge, node, rightNode, 1);
+        makeEdge(pLastEdge, node, rightNode, 1);
+
+        while (true)
+        {
+            current = lastEdge.child;
+            leftNode = current.leftChild.get();
+
+            if (leftNode.nullFlag.get() == true)
+            {
+                makeEdge(injectionEdge, current, leftNode, 0);
+                break;
+            }
+
+            // Move to the next edge
+            pLastEdge = lastEdge;
+            makeEdge(lastEdge, current, leftNode, 0);
+        }
+
+        // Set up the seekRecord for the calling function
+        seeker.lastEdge = lastEdge;
+        seeker.pLastEdge = pLastEdge;
+        seeker.injectionEdge = injectionEdge;
+        return true;
+    }
+
+    // Find the successor node and for the deletion operation
+    public void findAndMarkSuccessor(stateRecord state)
+    {
+        node node;
+        node leftNode;
+        node temp;
+        node tempLeft;
+        node tempNode;
+        edge successorEdge;
+        seekRecord seeker;
+        boolean markFlag;
+        boolean result;
+
+        node = state.targetEdge.child;
+        seeker = state.successorRecord;
+
+        while (true)
+        {
+            markFlag = node.markFlag.get();
+
+            // Get smallest node in right subtree
+            result = findSmallest(state, seeker);
+
+            // Either successor node preselected or right subtree empty
+            if (markFlag == true || result == false)
+                break;
+
+            // Grab seek record information
+            successorEdge = seeker.lastEdge;
+            leftNode = seeker.injectionEdge.child;
+
+            // Check if node being deleted is marked
+            markFlag = node.markFlag.get();
+
+            // If successor has been selected retry while
+            if (markFlag == true)
+                continue;
+
+            // Attempt to set the promote flag for left edge
+            tempLeft = leftNode;
+            tempNode = node;
+            tempLeft.nullFlag.set(true);
+            tempNode.nullFlag.set(true);
+            tempNode.promoteFlag.set(true);
+            result = successorEdge.child.leftChild.compareAndSet(tempLeft, tempNode);
+
+            if (result == true)
+                break;
+
+            // If the attempt to mark edge failed, recover and retry
+            temp = successorEdge.child.leftChild.get();
+
+            // Help with deletion
+            if ((temp.nullFlag.get() == true) && (temp.deleteFlag.get() == true))
+                helpTargetNode(successorEdge);
+        }
+        updateMode(state);
+        return;
+    }
+
+    // Removes the successor node used in delete operations
+    public void removeSuccessor(stateRecord state)
+    {
+
+    }
+
     // Help deletion finish
     public void helpTargetNode(edge helpeeEdge)
     {
+        stateRecord state = new stateRecord();
+        boolean result;
 
+        // Intent flag set on edge, get state record and initialize
+        state.targetEdge = helpeeEdge;
+        state.mode = 0; // Injection = 0
+
+        // If either the left or right edges are not marked, then mark them
+        result = markChildEdge(state, 0);
+        if (result == false)
+            return;
+
+        markChildEdge(state, 1);
+        initializeTypeAndUpdateMode(state);
+
+        // Finish delete
+        if (state.mode == 1)
+            findAndMarkSuccessor(state);
+//
+//        if (state.mode == 1)
+//            removeSuccessor(state);
+//
+//        if (state.mode == 2)
+//            cleanup(state);
+        return;
     }
 
     // Help promotion finish
