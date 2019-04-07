@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  *
- * @author Areeb Vaid & Ty Abbott
+ * @author Areeb Vaid & Ty Abbot
  */
 public class BST
 {
@@ -508,7 +508,204 @@ class BinarySearchTree
     // Removes the successor node used in delete operations
     public void removeSuccessor(stateRecord state)
     {
+        node node;
+        node address;
+        node temp;
+        node rightNode;
+        node oldValue;
+        node newValue;
+        edge successorEdge;
+        edge pLastEdge;
+        edge lastEdge;
+        seekRecord seeker;
+        int which;
+        boolean promoteCheck;
+        boolean intentCheck;
+        boolean nullCheck;
+        boolean deleteCheck;
+        boolean dFlag;
+        boolean result;
 
+        node = state.targetEdge.child;
+        seeker = state.successorRecord;
+        successorEdge = seeker.lastEdge;
+
+        // Check for valid information
+        address = successorEdge.child.leftChild.get();
+        promoteCheck = address.promoteFlag.get();
+
+        if (promoteCheck == false || address != node)
+        {
+            node.readyToReplace.set(true);
+            updateMode(state);
+            return;
+        }
+
+        // If the right edge is still not set for promotion, do so
+        temp = successorEdge.child.rightChild.get();
+        if (temp.promoteFlag.get() == false)
+            markChildEdge(state, 1);
+
+        // Promote the key
+        node.mKey = successorEdge.child.mKey;
+        node.markFlag.set(true);
+
+        while (true)
+        {
+            // Check if successor is right child of target
+            if (successorEdge.parent == node)
+            {
+                dFlag = true;
+                which = 1; // Right
+            }
+            else
+            {
+                dFlag = false;
+                which = 0; // Left
+            }
+
+            if (which == 0)
+                intentCheck = successorEdge.parent.leftChild.get().intentFlag.get();
+            else
+                intentCheck = successorEdge.parent.rightChild.get().intentFlag.get();
+
+            rightNode = successorEdge.child.rightChild.get();
+            nullCheck = rightNode.nullFlag.get();
+
+            oldValue = successorEdge.child;
+            oldValue.nullFlag.set(false);
+            oldValue.intentFlag.set(intentCheck);
+            oldValue.deleteFlag.set(dFlag);
+            oldValue.promoteFlag.set(false);
+
+            if (nullCheck == true)
+            {
+                newValue = successorEdge.child;
+                newValue.nullFlag.set(true);
+            }
+            else
+            {
+                newValue = rightNode;
+                newValue.nullFlag.set(false);
+            }
+            newValue.intentFlag.set(false);
+            newValue.deleteFlag.set(dFlag);
+            newValue.promoteFlag.set(false);
+
+            if (which == 0)
+                result = successorEdge.parent.leftChild.compareAndSet(oldValue, newValue);
+            else
+                result = successorEdge.parent.rightChild.compareAndSet(oldValue, newValue);
+
+            if (result == true || dFlag == true)
+                break;
+
+            if (which == 0)
+                temp = successorEdge.parent.leftChild.get();
+            else
+                temp = successorEdge.parent.rightChild.get();
+            deleteCheck = temp.deleteFlag.get();
+
+            pLastEdge = seeker.pLastEdge;
+            if (deleteCheck == true && pLastEdge != null)
+                helpTargetNode(pLastEdge);
+
+            result = findSmallest(state, seeker);
+            lastEdge = seeker.lastEdge;
+
+            // Successor node has been removed
+            if ((result == false) || (lastEdge.child != successorEdge.child))
+                break;
+            else
+                successorEdge = seeker.lastEdge;
+        }
+
+        node.readyToReplace.set(true);
+        updateMode(state);
+        return;
+    }
+
+    // Last stage of delete operation, used by both simple and complex delete
+    public boolean cleanup(stateRecord state)
+    {
+        node node;
+        node parent;
+        node leftNode;
+        node rightNode;
+        node oldValue;
+        node newValue;
+        node address;
+        node newNode = new node();
+        int pWhich;
+        int nWhich;
+        boolean nullCheck;
+        boolean result;
+
+        // Grab addresses to set up function
+        parent = state.targetEdge.parent;
+        node = state.targetEdge.child;
+        pWhich = state.targetEdge.which;
+
+        // If the type is a complex delete
+        if (state.type == 1)
+        {
+            // Replace node with new unmarked copy
+            newNode.mKey = node.mKey;
+            newNode.markFlag.set(false);
+
+            leftNode = node.leftChild.get();
+            rightNode = node.rightChild.get();
+            newNode.leftChild.set(leftNode);
+
+            nullCheck = rightNode.nullFlag.get();
+            if (nullCheck == true)
+            {
+                newNode.rightChild.set(null);
+                newNode.rightChild.get().nullFlag.set(true);
+            }
+            else
+                newNode.rightChild.set(node.rightChild.get());
+
+            // Initialize arguments of CAS
+            oldValue = node;
+            oldValue.intentFlag.set(true);
+            newValue = newNode;
+        }
+
+        // Type is simple delete, remove the node
+        else
+        {
+            // Find which edge will be switched
+            if (node.leftChild.get().nullFlag.get() == true)
+                nWhich = 1;
+            else
+                nWhich = 0;
+
+            // Set up for CAS
+            oldValue = node;
+            oldValue.intentFlag.set(true);
+
+            if (nWhich == 0)
+                address = node.leftChild.get();
+            else
+                address = node.rightChild.get();
+
+            if (address.nullFlag.get() == true)
+            {
+                newValue = node;
+                newValue.nullFlag.set(true);
+            }
+            else
+                newValue = address;
+        }
+
+        // Attempt to the set the correct value
+        if (pWhich == 0)
+            result = parent.leftChild.compareAndSet(oldValue, newValue);
+        else
+            result = parent.rightChild.compareAndSet(oldValue, newValue);
+
+        return result;
     }
 
     // Help deletion finish
@@ -532,19 +729,41 @@ class BinarySearchTree
         // Finish delete
         if (state.mode == 1)
             findAndMarkSuccessor(state);
-//
-//        if (state.mode == 1)
-//            removeSuccessor(state);
-//
-//        if (state.mode == 2)
-//            cleanup(state);
+
+        if (state.mode == 1)
+            removeSuccessor(state);
+
+        if (state.mode == 2)
+            cleanup(state);
+
         return;
     }
 
     // Help promotion finish
     public void helpSuccessorNode(edge helpeeEdge)
     {
+        node node;
+        node parent;
+        node leftNode;
+        stateRecord state = new stateRecord();
+        seekRecord seeker;
 
+        parent = helpeeEdge.parent;
+        node = helpeeEdge.child;
+
+        // Grab target node
+        leftNode = node.leftChild.get();
+
+        // Get new stateRecord and seekRecord and set them up
+        makeEdge(state.targetEdge, null, leftNode, 0);
+        state.mode = 1; // Discovery
+
+        seeker = state.successorRecord;
+        seeker.lastEdge = helpeeEdge;
+        makeEdge(seeker.pLastEdge, null, parent, 0);
+
+        // Promote key and remove successor
+        removeSuccessor(state);
     }
 
     // Function returns true if key is in tree and false if not
@@ -563,13 +782,11 @@ class BinarySearchTree
             return (true);
         else
             return (false);
-
     }
 
 
-// ------------------------------ NOT DONE ------------------------------------------------------- |
     // Function to insert value into the bst
-    public boolean insert(int key)  // targetRecord.remove(); Help target and succcessor
+    public boolean insert(int key)
     {
         node node;
         node newNode;
@@ -591,7 +808,10 @@ class BinarySearchTree
             nKey = node.mKey.get();
 
             if (nKey == key)
+            {
+                targetRecord.remove();
                 return (false);
+            }
 
             // Make a newNode and initialize
             newNode = newNode(key);
@@ -610,7 +830,10 @@ class BinarySearchTree
 
             // Successful insertion
             if (result)
+            {
+                targetRecord.remove();
                 return (true);
+            }
 
             // Unsuccessful insertion, help is needed
             if (which == 0)
@@ -618,11 +841,12 @@ class BinarySearchTree
             else
                 temp = node.rightChild.get();
 
-//            if (temp.deleteFlag.get())
-//                // Help Target Node
-//
-//            else if (temp.promoteFlag.get())
-//                // Help Successor Node
+            if (temp.deleteFlag.get())
+                helpTargetNode(targetEdge);
+
+            else if (temp.promoteFlag.get())
+                helpSuccessorNode(targetEdge);
+
         }
     }
 }
