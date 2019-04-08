@@ -134,6 +134,55 @@ class BinarySearchTree
         setEdge(first.pLastEdge, second.pLastEdge);
 
     }
+	
+	// Injection for the Deletion operation
+	public void inject(stateRecord state)
+	{
+		edge targetEdge = state.targetEdge;
+		// try to set the intent flag on the target edge
+		// retrieve attributes of the target edge
+		node parent = targetEdge.parent;
+		node child = targetEdge.child;
+		int which = targetEdge.which;
+		node temp = node; 
+		temp.nullFlag.set(true);
+		
+		if(which == 0)
+			boolean result = parent.leftChild.compareAndSet(node, temp);
+		else
+			boolean result = parent.rightChild.compareAndSet(node, temp);
+		
+		// Unable to set the intent flag; help if needed
+		if(!result)
+		{
+			if(which == 0)
+				temp = parent.leftChild.get();
+			else
+				temp = parent.rightChild.get();
+			
+			if(temp.intentFlag.get())
+				helpTargetNode(targetEdge);
+			
+			else if(temp.deleteFlag.get())
+				helpTargetNode(state.pTargetEdge);
+			
+			else if(temp.promoteFlag.get())
+				helpSuccessorNode(state.pTargetEdge);
+			
+			return;
+		}
+		
+		// Mark the left edge for deletion
+		boolean result = markChildEdge(state, 0)
+		if(!result)
+			return;
+		
+		// Mark the right edge for deletion; cannot fail
+		result = markChildEdge(state, 1);
+		
+		// Initialize the type and mode of the operation
+		initializeTypeAndUpdateMode(state);
+	}
 
     // Search through tree and find if there exists a node with the given key
     public void seek(int key, seekRecord seeker)
@@ -259,4 +308,81 @@ class BinarySearchTree
             return (false);
 
     }
+	
+	// Function returns true if delete succeeds and false if unsuccessful
+	public boolean delete(int key)
+	{
+		// initialize the state record
+		stateRecord myState;
+		myState.targetKey = key;
+		myState.currentKey = key;
+		myState.mode = 0; // Injection
+		
+		while(true)
+		{
+			seek(myState.currentKey, targetRecord);
+			
+			edge targetEdge = targetRecord.lastEdge;
+			edge pTargetEdge = targetRecord.pLastEdge;
+			AtomicInteger nKey = targetEdge.child.mKey;
+			
+			// The key does not exist in the tree
+			if(myState.currentKey != nKey)
+			{
+				if(myState.mode == 0)
+					return false;
+				else
+					return true;
+				
+			}
+			
+			// Perform appropriate action depending on the mode
+			if(myState.mode == 0)
+			{
+				// Store a reference to the target edge
+				myState.targetEdge = targetEdge;
+				myState.pTargetEdge = pTargetEdge;
+				
+				// Attempt to inject the operation at the node
+				inject(myState);
+			}
+			
+			// Mode would have changed if injection was successful
+			if(myState.mode != 0)
+			{
+				// Check if the target node found by the seek function
+				// matches the one stored in the state record
+				if(myState.targetEdge.child != targetEdge.child)
+					return true;
+				// Update the target edge information using the most
+				// recent seek
+				myState.targetEdge = targetEdge;
+			}
+			
+			// Complex delete operation; locate the successor node
+			// and mark its child edges with promote flag
+			if(myState.mode == 1)
+				findAndMarkSuccessor(myState);
+			
+			// Complex delete operation; promote the successor
+			// node's key and remove the successor node
+			if(myState.mode == 1)
+				removeSuccessor(myState);
+			
+			// Either remove the target node (simple delete) or
+			// replace it with a new node with all fields unmarked
+			// (complex delete)
+			if(myState.mode == 2)
+			{
+				boolean result = cleanup(myState);
+				if(result)
+					return true;
+				else
+				{
+					nKey = targetEdge.child.mKey;
+					myState.currentKey = nKey;
+				}
+			}
+		}
+	}
 }
