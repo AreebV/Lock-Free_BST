@@ -8,16 +8,28 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  *
- * @author Areeb Vaid & Ty Abbot
+ * @author Areeb Vaid & Ty Abbott
  */
 public class BST
 {
 
-    /**
-     * @param args the command line arguments
-     */
-    public static void main(String[] args) {
-        // TODO code application logic here
+    public static void main(String[] args)
+    {
+        BinarySearchTree bst = new BinarySearchTree();
+        boolean check;
+
+        bst.createStart();
+        check = bst.insert(10);
+        System.out.println("RETURN: " + check);
+
+        check = bst.insert(10);
+        System.out.println("RETURN: " + check);
+
+        check = bst.search(10);
+        System.out.println("RETURN: " + check);
+
+        check = bst.search(25);
+        System.out.println("RETURN: " + check);
     }
 
 }
@@ -26,18 +38,18 @@ class BinarySearchTree
 {
     private class node
     {
-        private AtomicInteger mKey;
-        private AtomicBoolean markFlag;
+        private AtomicInteger mKey = new AtomicInteger();
+        private AtomicBoolean markFlag = new AtomicBoolean();
 
-        private AtomicReference<node> leftChild;
-        private AtomicReference<node> rightChild;
+        private AtomicReference<node> leftChild = new AtomicReference<node>();
+        private AtomicReference<node> rightChild = new AtomicReference<node>();
 
-        private AtomicBoolean intentFlag;
-        private AtomicBoolean deleteFlag;
-        private AtomicBoolean promoteFlag;
-        private AtomicBoolean nullFlag;
+        private AtomicBoolean intentFlag = new AtomicBoolean();
+        private AtomicBoolean deleteFlag = new AtomicBoolean();
+        private AtomicBoolean promoteFlag = new AtomicBoolean();
+        private AtomicBoolean nullFlag = new AtomicBoolean();
 
-        private AtomicBoolean readyToReplace;
+        private AtomicBoolean readyToReplace = new AtomicBoolean();
     }
 
     private class edge
@@ -80,37 +92,32 @@ class BinarySearchTree
     private stateRecord myState = new stateRecord();
 
     // 3 Sentinal Nodes
-    private node R;
-    private node S;
-    private node T;
+    private node R = new node();
+    private node S = new node();
+    private node T = new node();
 
     // Creates a new node (used for insert and createStart)
-    public node newNode(int key)
+    public void newNode(int key, node newNode)
     {
-        node newNode = new node();
         newNode.mKey.set(key);
 
         node leftNode = new node();
         node rightNode = new node();
         leftNode.nullFlag.set(true);
         rightNode.nullFlag.set(true);
-        leftNode = null;
-        rightNode = null;
 
         newNode.leftChild.set(leftNode);
         newNode.rightChild.set(rightNode);
-
-        return (newNode);
     }
 
     // Function allocates the start nodes, done in main before any operations take place
     public void createStart()
     {
-        R = newNode(0);
-        R.rightChild.set(newNode(1));
-        S = R.rightChild.get();
-        S.rightChild.set(newNode(2));
-        T = S.rightChild.get();
+        newNode(0, R);
+        newNode(1, S);
+        newNode(2, T);
+        R.rightChild.set(S);
+        S.rightChild.set(T);
     }
 
     // Function that fills in the edge between nodes
@@ -129,6 +136,19 @@ class BinarySearchTree
         first.which = second.which;
     }
 
+    public void copyNode(node node1, node node2)
+    {
+        node1.deleteFlag.set(node2.deleteFlag.get());
+        node1.intentFlag.set(node2.intentFlag.get());
+        node1.promoteFlag.set(node2.promoteFlag.get());
+        node1.deleteFlag.set(node2.deleteFlag.get());
+        node1.leftChild.set(node2.leftChild.get());
+        node1.rightChild.set(node2.rightChild.get());
+        node1.mKey.set(node2.mKey.get());
+        node1.markFlag.set(node2.markFlag.get());
+        node1.readyToReplace.set(node2.readyToReplace.get());
+    }
+
     // Function that sets one seekRecord equal to another
     public void setSeekRecord(seekRecord first, seekRecord second)
     {
@@ -138,23 +158,53 @@ class BinarySearchTree
 
     }
 
-    // Search through tree and find if there exists a node with the given key
-    public void seek(int key, seekRecord seeker)
+    // RDCSS that compares two values and sets 1
+    public boolean RDCSS(AtomicBoolean a1, boolean o1, AtomicReference<node> a2, node o2, node n2)
     {
-        anchorRecord pAnchorRecord = null;
-        anchorRecord anchorRecord = null;
-        seekRecord pSeekRecord = null;
-        edge pLastEdge = null;
-        edge lastEdge = null;
+        boolean check;
+
+        if (a1.get() == o1)
+        {
+            check = RDCSSComplete(a1, o1, a2, o2, n2);
+        }
+        else
+            return false;
+
+        return check;
+    }
+
+    public boolean RDCSSComplete(AtomicBoolean a1, boolean o1, AtomicReference<node> a2, node o2, node n2)
+    {
+        boolean v = a1.get();
+
+        if (v == o1)
+        {
+            return(a2.compareAndSet(o2, n2));
+        }
+
+        else return (false);
+    }
+
+    // Search through tree and find if there exists a node with the given key
+    public void seek(int key)
+    {
+        anchorRecord pAnchorRecord = new anchorRecord();   //D
+        anchorRecord anchorRecord = new anchorRecord();    //D
+        seekRecord pSeekRecord = new seekRecord();         //D
+        edge pLastEdge = new edge();                       //D
+        edge lastEdge = new edge();                        //D
+        edge tempEdge = new edge();
         int cKey;
         int aKey;
         int which;
-        node temp;
-        node next;
-        node curr;
+        node temp;                                         //D
+        node next;                                         //D
+        node curr;                                         //D
         boolean nullCheck = false;
         boolean deleteCheck = false;
         boolean promoteCheck = false;
+
+        seekRecord seeker = new seekRecord();
 
         pAnchorRecord.key = S.mKey.get();
         pAnchorRecord.node = S;
@@ -191,7 +241,8 @@ class BinarySearchTree
                 {
                     seeker.pLastEdge = pLastEdge;
                     seeker.lastEdge = lastEdge;
-                    makeEdge(seeker.injectionEdge, curr, next, which);
+                    makeEdge(tempEdge, curr, next, which);
+                    seeker.injectionEdge = tempEdge;
                     targetRecord.set(seeker);
 
                     // If key has been found return, else break to check if node has moved up the tree
@@ -229,12 +280,13 @@ class BinarySearchTree
                     return;
 
                 // If anchor record equals previous anchor record, return previous access path
-                if (pAnchorRecord.node == anchorRecord.node && pAnchorRecord.key == anchorRecord.key)
+                if (pAnchorRecord.node.equals(anchorRecord.node) && pAnchorRecord.key == anchorRecord.key)
                 {
                     setSeekRecord(seeker, pSeekRecord);
                     targetRecord.set(seeker);
                     return;
                 }
+
             }
 
             // Store current seek traversal, and try seek again
@@ -251,11 +303,10 @@ class BinarySearchTree
         node node;
         node temp;
         node address;
-        node oldValue;
-        node newValue;
-        node tempValue;
+        node oldValue = new node();
+        node newValue = new node();
         edge edge;
-        edge helpeeEdge = null;
+        edge helpeeEdge = new edge();
         boolean nullCheck = false;
         boolean intentCheck = false;
         boolean deleteCheck = false;
@@ -291,7 +342,7 @@ class BinarySearchTree
 
             if (intentCheck == true)
             {
-                makeEdge(helpeeEdge, node, address, which); // CHECK: NOT ALLOCATED?
+                makeEdge(helpeeEdge, node, address, which);
                 helpTargetNode(helpeeEdge);
                 continue;
             }
@@ -321,27 +372,57 @@ class BinarySearchTree
             }
 
             // Set null for oldValue if nullCheck is true
-            if (nullCheck)
-                address.nullFlag.set(true);
             oldValue = address;
+            copyNode(oldValue, address);
+            if (nullCheck)
+                oldValue.nullFlag.set(true);
 
             if (flag == 0)
             {
-                tempValue = oldValue;
-                tempValue.deleteFlag.set(true);
-                newValue = tempValue;
+                copyNode(newValue, oldValue);
+                newValue.deleteFlag.set(true);
+                if (nullCheck)
+                    newValue.nullFlag.set(true);
             }
             else
             {
-                tempValue = oldValue;
-                tempValue.promoteFlag.set(true);
-                newValue = tempValue;
+                copyNode(newValue, oldValue);
+                newValue.promoteFlag.set(true);
+                if (nullCheck)
+                    newValue.nullFlag.set(true);
             }
 
+//            if (which == 0)
+//            {
+//                if ((nullCheck == true && node.leftChild.get().nullFlag.get() == true) ||
+//                     (nullCheck == false && node.leftChild.get().nullFlag.get() == false))
+//                {
+//                    result = node.leftChild.compareAndSet(oldValue, newValue);
+//                }
+//                else
+//                    result = false;
+//            }
+//
+//            else
+//            {
+//                if ((nullCheck == true && node.rightChild.get().nullFlag.get() == true) ||
+//                     (nullCheck == false && node.rightChild.get().nullFlag.get() == false))
+//                {
+//                    result = node.rightChild.compareAndSet(oldValue, newValue);
+//                }
+//                else
+//                    result = false;
+//            }
+
+//            if (which == 0)
+//                result = node.leftChild.compareAndSet(oldValue, newValue);
+//            else
+//                result = node.rightChild.compareAndSet(oldValue, newValue);
+
             if (which == 0)
-                result = node.leftChild.compareAndSet(oldValue, newValue);
+                result = RDCSS(node.leftChild.get().nullFlag, nullCheck, node.leftChild, oldValue, newValue);
             else
-                result = node.rightChild.compareAndSet(oldValue, newValue);
+                result = RDCSS(node.rightChild.get().nullFlag, nullCheck, node.rightChild, oldValue, newValue);
 
             // If CAS failed retry, otherwise break out of loop and return true
             if (!result)
@@ -407,9 +488,9 @@ class BinarySearchTree
         node rightNode;
         node leftNode;
         node current;
-        edge lastEdge = null;
-        edge pLastEdge = null;
-        edge injectionEdge = null;
+        edge lastEdge = new edge();
+        edge pLastEdge = new edge();
+        edge injectionEdge = new edge();
 
         node = state.targetEdge.child;
         rightNode = node.rightChild.get();
@@ -451,8 +532,8 @@ class BinarySearchTree
         node node;
         node leftNode;
         node temp;
-        node tempLeft;
-        node tempNode;
+        node tempLeft = new node();
+        node tempNode= new node();
         edge successorEdge;
         seekRecord seeker;
         boolean markFlag;
@@ -484,12 +565,19 @@ class BinarySearchTree
                 continue;
 
             // Attempt to set the promote flag for left edge
-            tempLeft = leftNode;
-            tempNode = node;
-            tempLeft.nullFlag.set(true);
+//            copyNode(tempLeft, leftNode);
+//            tempLeft.nullFlag.set(true);
+
+            copyNode(tempNode, node);
             tempNode.nullFlag.set(true);
             tempNode.promoteFlag.set(true);
-            result = successorEdge.child.leftChild.compareAndSet(tempLeft, tempNode);
+
+//            if (successorEdge.child.leftChild.get().nullFlag.get())
+//                result = successorEdge.child.leftChild.compareAndSet(leftNode, tempNode);
+//            else
+//                result = false;
+
+            result = RDCSS(successorEdge.child.leftChild.get().nullFlag, true, successorEdge.child.leftChild, leftNode, tempNode);
 
             if (result == true)
                 break;
@@ -512,8 +600,8 @@ class BinarySearchTree
         node address;
         node temp;
         node rightNode;
-        node oldValue;
-        node newValue;
+        node oldValue = new node();
+        node newValue = new node();
         edge successorEdge;
         edge pLastEdge;
         edge lastEdge;
@@ -572,30 +660,47 @@ class BinarySearchTree
             rightNode = successorEdge.child.rightChild.get();
             nullCheck = rightNode.nullFlag.get();
 
+//            copyNode(oldValue, successorEdge.child);
+//            oldValue.nullFlag.set(false);
+//            oldValue.intentFlag.set(intentCheck);
+//            oldValue.deleteFlag.set(dFlag);
+//            oldValue.promoteFlag.set(false);
+
             oldValue = successorEdge.child;
-            oldValue.nullFlag.set(false);
-            oldValue.intentFlag.set(intentCheck);
-            oldValue.deleteFlag.set(dFlag);
-            oldValue.promoteFlag.set(false);
 
             if (nullCheck == true)
             {
-                newValue = successorEdge.child;
+                copyNode(newValue, successorEdge.child);
                 newValue.nullFlag.set(true);
             }
             else
             {
-                newValue = rightNode;
+                copyNode(newValue, rightNode);
                 newValue.nullFlag.set(false);
             }
             newValue.intentFlag.set(false);
             newValue.deleteFlag.set(dFlag);
             newValue.promoteFlag.set(false);
 
+//            if (which == 0)
+//                result = successorEdge.parent.leftChild.compareAndSet(oldValue, newValue);
+//            else
+//                result = successorEdge.parent.rightChild.compareAndSet(oldValue, newValue);
+
             if (which == 0)
-                result = successorEdge.parent.leftChild.compareAndSet(oldValue, newValue);
+            {
+                if (successorEdge.parent.leftChild.get().intentFlag.get() == intentCheck)
+                    result = RDCSS(successorEdge.parent.leftChild.get().deleteFlag, dFlag, successorEdge.parent.leftChild, oldValue, newValue);
+                else
+                    result = false;
+            }
             else
-                result = successorEdge.parent.rightChild.compareAndSet(oldValue, newValue);
+            {
+                if (successorEdge.parent.rightChild.get().intentFlag.get() == intentCheck)
+                    result = RDCSS(successorEdge.parent.rightChild.get().deleteFlag, dFlag, successorEdge.parent.rightChild, oldValue, newValue);
+                else
+                    result = false;
+            }
 
             if (result == true || dFlag == true)
                 break;
@@ -632,8 +737,8 @@ class BinarySearchTree
         node parent;
         node leftNode;
         node rightNode;
-        node oldValue;
-        node newValue;
+        node oldValue = new node();
+        node newValue = new node();
         node address;
         node newNode = new node();
         int pWhich;
@@ -667,9 +772,10 @@ class BinarySearchTree
                 newNode.rightChild.set(node.rightChild.get());
 
             // Initialize arguments of CAS
+//            copyNode(oldValue, node);
+//            oldValue.intentFlag.set(true);
             oldValue = node;
-            oldValue.intentFlag.set(true);
-            newValue = newNode;
+            copyNode(newValue, newNode);
         }
 
         // Type is simple delete, remove the node
@@ -682,8 +788,10 @@ class BinarySearchTree
                 nWhich = 0;
 
             // Set up for CAS
+//            copyNode(oldValue, node);
+//            oldValue.intentFlag.set(true);
+
             oldValue = node;
-            oldValue.intentFlag.set(true);
 
             if (nWhich == 0)
                 address = node.leftChild.get();
@@ -692,18 +800,23 @@ class BinarySearchTree
 
             if (address.nullFlag.get() == true)
             {
-                newValue = node;
+               copyNode(newValue, node);
                 newValue.nullFlag.set(true);
             }
             else
-                newValue = address;
+                copyNode(newValue, address);
         }
 
         // Attempt to the set the correct value
+//        if (pWhich == 0)
+//            result = parent.leftChild.compareAndSet(oldValue, newValue);
+//        else
+//            result = parent.rightChild.compareAndSet(oldValue, newValue);
+
         if (pWhich == 0)
-            result = parent.leftChild.compareAndSet(oldValue, newValue);
+            result = RDCSS(parent.leftChild.get().intentFlag, true, parent.leftChild, oldValue, newValue);
         else
-            result = parent.rightChild.compareAndSet(oldValue, newValue);
+            result = RDCSS(parent.rightChild.get().intentFlag, true, parent.rightChild, oldValue, newValue);
 
         return result;
     }
@@ -715,7 +828,10 @@ class BinarySearchTree
         boolean result;
 
         // Intent flag set on edge, get state record and initialize
-        state.targetEdge = helpeeEdge;
+        copyNode(state.targetEdge.child, helpeeEdge.child);
+        copyNode(state.targetEdge.parent, helpeeEdge.parent);
+        state.targetEdge.which = helpeeEdge.which;
+
         state.mode = 0; // Injection = 0
 
         // If either the left or right edges are not marked, then mark them
@@ -759,7 +875,9 @@ class BinarySearchTree
         state.mode = 1; // Discovery
 
         seeker = state.successorRecord;
-        seeker.lastEdge = helpeeEdge;
+        copyNode(seeker.lastEdge.child, helpeeEdge.child);
+        copyNode(seeker.lastEdge.parent, helpeeEdge.parent);
+        seeker.lastEdge.which = helpeeEdge.which;
         makeEdge(seeker.pLastEdge, null, parent, 0);
 
         // Promote key and remove successor
@@ -772,7 +890,7 @@ class BinarySearchTree
         node node;
         int nKey;
 
-        seek(key, targetRecord.get());
+        seek(key);
         node = targetRecord.get().lastEdge.child;
         nKey = node.mKey.get();
 
@@ -789,10 +907,10 @@ class BinarySearchTree
     public boolean insert(int key)
     {
         node node;
-        node newNode;
+        node newNode = new node();
         node address;
         node temp;
-        node tempAddress;
+        //node tempAddress = new node(); // NOT USED
         edge targetEdge;
         int nKey;
         int which;
@@ -800,7 +918,7 @@ class BinarySearchTree
 
         while (true)
         {
-            seek(key, targetRecord.get());
+            seek(key);
 
             // The target edge and target node found from seek
             targetEdge = targetRecord.get().lastEdge;
@@ -814,19 +932,26 @@ class BinarySearchTree
             }
 
             // Make a newNode and initialize
-            newNode = newNode(key);
+            newNode(key, newNode);
             newNode.readyToReplace.set(false);
 
             which = targetRecord.get().injectionEdge.which;
             address = targetRecord.get().injectionEdge.child;
-            tempAddress = address;
-            tempAddress.nullFlag.set(true);
+//            copyNode(tempAddress, address);
+//            tempAddress.nullFlag.set(true);
 
             // Attempt to modify the BST by adding in the new node
-            if (which == 0)
-                result = node.leftChild.compareAndSet(tempAddress, newNode);
+            if (address.nullFlag.get())
+            {
+                if (which == 0)
+                    result = node.leftChild.compareAndSet(address, newNode);
+                else
+                    result = node.rightChild.compareAndSet(address, newNode);
+            }
             else
-                result = node.rightChild.compareAndSet(tempAddress, newNode);
+                result = false;
+
+
 
             // Successful insertion
             if (result)
